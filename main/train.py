@@ -222,6 +222,9 @@ if __name__ == "__main__":
     torch.manual_seed(1234)
     model = MolecularGraphNeuralNetwork(
             N_fingerprints, dim, layer_hidden, layer_output, output_dim).to(device)
+    
+    print("Model hyperparameters:", N_fingerprints, dim, layer_hidden, layer_output, output_dim)
+
     trainer = Trainer(model)
     tester = Tester(model)
     print('# of model parameters:',
