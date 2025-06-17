@@ -110,8 +110,8 @@ def create_datasets(task, dataset, radius, device):
         dataset = []
 
         for data in data_original:
-
-            smiles, property = data.strip().split()
+            items = data.strip().split()
+            smiles, properties = items[0], items[1:]
 
             """Create each data with the above defined functions."""
             mol = Chem.AddHs(Chem.MolFromSmiles(smiles))
@@ -128,11 +128,11 @@ def create_datasets(task, dataset, radius, device):
             fingerprints = torch.LongTensor(fingerprints).to(device)
             adjacency = torch.FloatTensor(adjacency).to(device)
             if task == 'classification':
-                property = torch.LongTensor([int(property)]).to(device)
-            if task == 'regression':
-                property = torch.FloatTensor([[float(property)]]).to(device)
+                raise NotImplementedError("Multivalue classification not supported in this script.")
+            elif task == 'regression':
+                properties = torch.tensor([[float(p) for p in properties]], dtype=torch.float32).to(device)
 
-            dataset.append((fingerprints, adjacency, molecular_size, property))
+            dataset.append((fingerprints, adjacency, molecular_size, properties))
 
         return dataset
 

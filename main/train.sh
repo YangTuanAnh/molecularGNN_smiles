@@ -4,7 +4,7 @@
 # dataset=hiv
 
 task=regression  # target is a real value (e.g., energy eV).
-dataset=photovoltaic
+dataset=sample
 
 radius=1
 dim=50

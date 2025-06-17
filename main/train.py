@@ -14,7 +14,7 @@ import preprocess as pp
 
 
 class MolecularGraphNeuralNetwork(nn.Module):
-    def __init__(self, N_fingerprints, dim, layer_hidden, layer_output):
+    def __init__(self, N_fingerprints, dim, layer_hidden, layer_output, output_dim):
         super(MolecularGraphNeuralNetwork, self).__init__()
         self.embed_fingerprint = nn.Embedding(N_fingerprints, dim)
         self.W_fingerprint = nn.ModuleList([nn.Linear(dim, dim)
@@ -24,7 +24,8 @@ class MolecularGraphNeuralNetwork(nn.Module):
         if task == 'classification':
             self.W_property = nn.Linear(dim, 2)
         if task == 'regression':
-            self.W_property = nn.Linear(dim, 1)
+            assert output_dim is not None
+            self.W_property = nn.Linear(dim, output_dim)
 
     def pad(self, matrices, pad_value):
         """Pad the list of matrices
@@ -116,12 +117,16 @@ class MolecularGraphNeuralNetwork(nn.Module):
             with torch.no_grad():
                 molecular_vectors = self.gnn(inputs)
                 predicted_values = self.mlp(molecular_vectors)
-            predicted_values = predicted_values.to('cpu').data.numpy()
-            correct_values = correct_values.to('cpu').data.numpy()
-            predicted_values = np.concatenate(predicted_values)
-            correct_values = np.concatenate(correct_values)
+            predicted_values = predicted_values.cpu().numpy()
+            correct_values = correct_values.cpu().numpy()
             return predicted_values, correct_values
-
+        
+    def extract_embeddings(self, data_batch):
+        """Return molecular embeddings from GNN before MLP."""
+        inputs = data_batch[:-1]
+        with torch.no_grad():
+            molecular_vectors = self.gnn(inputs)
+        return molecular_vectors.cpu()  # Optionally convert to numpy with `.numpy()`
 
 class Trainer(object):
     def __init__(self, model):
@@ -169,7 +174,7 @@ class Tester(object):
             predicted_values, correct_values = self.model.forward_regressor(
                                                data_batch, train=False)
             SAE += sum(np.abs(predicted_values-correct_values))
-        MAE = SAE / N  # mean absolute error.
+        MAE = SAE / correct_values.size
         return MAE
 
     def save_result(self, result, filename):
@@ -201,6 +206,10 @@ if __name__ == "__main__":
     print('Just a moment......')
     (dataset_train, dataset_dev, dataset_test,
      N_fingerprints) = pp.create_datasets(task, dataset, radius, device)
+    if task == 'regression':
+        output_dim = dataset_train[0][-1].shape[1]
+    else:
+        output_dim = None
     print('-'*100)
 
     print('The preprocess has finished!')
@@ -212,7 +221,7 @@ if __name__ == "__main__":
     print('Creating a model.')
     torch.manual_seed(1234)
     model = MolecularGraphNeuralNetwork(
-            N_fingerprints, dim, layer_hidden, layer_output).to(device)
+            N_fingerprints, dim, layer_hidden, layer_output, output_dim).to(device)
     trainer = Trainer(model)
     tester = Tester(model)
     print('# of model parameters:',
@@ -266,3 +275,7 @@ if __name__ == "__main__":
         tester.save_result(result, file_result)
 
         print(result)
+
+    model_save_path = f'../output/model--{setting}.pth'
+    torch.save(model.state_dict(), model_save_path)
+    print(f"Model weights saved to {model_save_path}")
